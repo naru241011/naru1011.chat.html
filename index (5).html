@@ -81,13 +81,14 @@
                 // 入力中の演出スタート
                 const typingMsg = addMessage('入力中...', 'bot', true);
 
-                // 無料の中継サーバー（AllOrigins）を使って外部サイトのHTMLを読み込む
+                // 【修正版】めちゃくちゃ頑丈で速い中継サーバー（corsproxy.io）に変更
                 fetch(`https://corsproxy.io/?${encodeURIComponent(SCRAPE_TARGET_URL)}`)
-    .then(response => response.text())
-    .then(html => {
-        // 読み込んだサイトのデータから、リンク（aタグ）だけを抜き出す
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
+                    .then(response => response.text())
+                    .then(html => {
+                        // 読み込んだサイトのデータから、リンク（aタグ）だけを抜き出す
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, "text/html");
+                        const aTags = Array.from(doc.querySelectorAll("a"));
                         
                         // LINK_KEYWORD が含まれるURLだけを絞り込む
                         let videoLinks = aTags
@@ -97,30 +98,26 @@
                         // 重複を削除
                         videoLinks = [...new Set(videoLinks)];
 
-                        // 演出用の待ち時間（2〜4秒）
-                        const typingTime = Math.floor(Math.random() * 2000) + 2000;
+                        // 【修正版】わざとの長い待ち時間を完全に撤廃！すぐ消して次へ
+                        chatMessages.removeChild(typingMsg);
 
-                        setTimeout(() => {
-                            chatMessages.removeChild(typingMsg);
-
-                            if (videoLinks.length > 0) {
-                                // 絞り込んだ中からランダムで1つ選ぶ
-                                const randomHref = videoLinks[Math.floor(Math.random() * videoLinks.length)];
-                                let finalUrl = randomHref;
-                                
-                                // URLが「/」から始まる省略形だった場合、元のドメインをくっつける
-                                if (finalUrl.startsWith('/')) {
-                                    const urlObj = new URL(SCRAPE_TARGET_URL);
-                                    finalUrl = urlObj.origin + finalUrl;
-                                }
-
-                                const randomText = REPLY_TEXTS[Math.floor(Math.random() * REPLY_TEXTS.length)];
-                                const replyContent = `${randomText}<br><br><a href="${finalUrl}" target="_blank">${finalUrl}</a>`;
-                                addMessage(replyContent, 'bot');
-                            } else {
-                                addMessage('ごめん、いい動画が見つからなかった…。', 'bot');
+                        if (videoLinks.length > 0) {
+                            // 絞り込んだ中からランダムで1つ選ぶ
+                            const randomHref = videoLinks[Math.floor(Math.random() * videoLinks.length)];
+                            let finalUrl = randomHref;
+                            
+                            // URLが「/」から始まる省略形だった場合、元のドメインをくっつける
+                            if (finalUrl.startsWith('/')) {
+                                const urlObj = new URL(SCRAPE_TARGET_URL);
+                                finalUrl = urlObj.origin + finalUrl;
                             }
-                        }, typingTime);
+
+                            const randomText = REPLY_TEXTS[Math.floor(Math.random() * REPLY_TEXTS.length)];
+                            const replyContent = `${randomText}<br><br><a href="${finalUrl}" target="_blank">${finalUrl}</a>`;
+                            addMessage(replyContent, 'bot');
+                        } else {
+                            addMessage('ごめん、いい動画が見つからなかった…。', 'bot');
+                        }
                     })
                     .catch(err => {
                         chatMessages.removeChild(typingMsg);
@@ -132,7 +129,7 @@
                 setTimeout(() => {
                     chatMessages.removeChild(typingMsg);
                     addMessage('動画が見たい時は「動画を見せて」って言ってね！', 'bot');
-                }, 1500);
+                }, 1000);
             }
         }
 
