@@ -82,13 +82,12 @@
                 const typingMsg = addMessage('入力中...', 'bot', true);
 
                 // 無料の中継サーバー（AllOrigins）を使って外部サイトのHTMLを読み込む
-                fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(SCRAPE_TARGET_URL)}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        // 読み込んだサイトのデータから、リンク（aタグ）だけを抜き出す
-                        const parser = new DOMParser();
-                        const doc = parser.parseFromString(data.contents, "text/html");
-                        const aTags = Array.from(doc.querySelectorAll("a"));
+                fetch(`https://corsproxy.io/?${encodeURIComponent(SCRAPE_TARGET_URL)}`)
+    .then(response => response.text())
+    .then(html => {
+        // 読み込んだサイトのデータから、リンク（aタグ）だけを抜き出す
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
                         
                         // LINK_KEYWORD が含まれるURLだけを絞り込む
                         let videoLinks = aTags
