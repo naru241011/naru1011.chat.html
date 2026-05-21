@@ -40,9 +40,11 @@
         // =========================================================
         
         // ① 動画を探しに行きたいページのURL（何個でも並べられます！）
-        // ※URLの最後に「,（カンマ）」をつけて増やしていけます。
+        // ※ 最後に必ず「,（カンマ）」をつけて区切ってください。
         const SCRAPE_TARGET_URLS = [
             'https://jp.pornhub.com/',
+            'https://jp.pornhub.com/video?o=ht',
+            'https://jp.pornhub.com/video?o=mv'
         ];
 
         // ② そのサイトの「動画リンク」に必ず含まれる文字
@@ -73,63 +75,80 @@
         }
 
         function handleSend() {
-            const userText = chatInput.value.trim();
-            if (userText === '') return; 
+            try {
+                const userText = chatInput.value.trim();
+                if (userText === '') return; 
 
-            addMessage(userText, 'user');
-            chatInput.value = ''; 
+                addMessage(userText, 'user');
+                chatInput.value = ''; 
 
-            if (userText.includes('動画を見せて') || userText.includes('動画')) {
-                // 入力中の演出スタート
-                const typingMsg = addMessage('入力中...', 'bot', true);
+                if (userText.includes('動画を見せて') || userText.includes('動画')) {
+                    const typingMsg = addMessage('入力中...', 'bot', true);
 
-                // 【複数サイト対応】並べられたURLの中からランダムで1つ選ぶ
-                const randomTargetUrl = SCRAPE_TARGET_URLS[Math.floor(Math.random() * SCRAPE_TARGET_URLS.length)];
-
-                // 選ばれたURLにアクセスしに行く
-                fetch(`https://corsproxy.io/?${encodeURIComponent(randomTargetUrl)}`)
-                    .then(response => response.text())
-                    .then(html => {
-                        const parser = new DOMParser();
-                        const doc = parser.parseFromString(html, "text/html");
-                        const aTags = Array.from(doc.querySelectorAll("a"));
-                        
-                        let videoLinks = aTags
-                            .map(a => a.getAttribute('href'))
-                            .filter(href => href && href.includes(LINK_KEYWORD));
-
-                        videoLinks = [...new Set(videoLinks)];
-
+                    // 配列からランダムでURLを選択（安全対策付き）
+                    if (!SCRAPE_TARGET_URLS || SCRAPE_TARGET_URLS.length === 0) {
                         chatMessages.removeChild(typingMsg);
+                        addMessage('エラー：URLが設定されていません。', 'bot');
+                        return;
+                    }
+                    const randomTargetUrl = SCRAPE_TARGET_URLS[Math.floor(Math.random() * SCRAPE_TARGET_URLS.length)];
 
-                        if (videoLinks.length > 0) {
-                            const randomHref = videoLinks[Math.floor(Math.random() * videoLinks.length)];
-                            let finalUrl = randomHref;
+                    fetch(`https://corsproxy.io/?${encodeURIComponent(randomTargetUrl)}`)
+                        .then(response => {
+                            if (!response.ok) throw new Error('Network error');
+                            return response.text();
+                        })
+                        .then(html => {
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(html, "text/html");
+                            const aTags = Array.from(doc.querySelectorAll("a"));
                             
-                            // URLが「/」から始まる省略形だった場合、選ばれた元のドメインをくっつける
-                            if (finalUrl.startsWith('/')) {
-                                const urlObj = new URL(randomTargetUrl);
-                                finalUrl = urlObj.origin + finalUrl;
+                            let videoLinks = aTags
+                                .map(a => a.getAttribute('href'))
+                                .filter(href => href && href.includes(LINK_KEYWORD));
+
+                            videoLinks = [...new Set(videoLinks)];
+
+                            if (chatMessages.contains(typingMsg)) {
+                                chatMessages.removeChild(typingMsg);
                             }
 
-                            const randomText = REPLY_TEXTS[Math.floor(Math.random() * REPLY_TEXTS.length)];
-                            const replyContent = `${randomText}<br><br><a href="${finalUrl}" target="_blank">${finalUrl}</a>`;
-                            addMessage(replyContent, 'bot');
-                        } else {
-                            addMessage('ごめん、いい動画が見つからなかった…。', 'bot');
-                        }
-                    })
-                    .catch(err => {
-                        chatMessages.removeChild(typingMsg);
-                        addMessage('あれ、電波が悪いみたい。もう一回言って！', 'bot');
-                    });
+                            if (videoLinks.length > 0) {
+                                const randomHref = videoLinks[Math.floor(Math.random() * videoLinks.length)];
+                                let finalUrl = randomHref;
+                                
+                                if (finalUrl.startsWith('/')) {
+                                    const urlObj = new URL(randomTargetUrl);
+                                    finalUrl = urlObj.origin + finalUrl;
+                                }
 
-            } else {
-                const typingMsg = addMessage('入力中...', 'bot', true);
-                setTimeout(() => {
-                    chatMessages.removeChild(typingMsg);
-                    addMessage('動画が見たい時は「動画を見せて」って言ってね！', 'bot');
-                }, 1000);
+                                const randomText = REPLY_TEXTS[Math.floor(Math.random() * REPLY_TEXTS.length)];
+                                const replyContent = `${randomText}<br><br><a href="${finalUrl}" target="_blank">${finalUrl}</a>`;
+                                addMessage(replyContent, 'bot');
+                            } else {
+                                addMessage('ごめん、いい動画が見つからなかった…。', 'bot');
+                            }
+                        })
+                        .catch(err => {
+                            if (chatMessages.contains(typingMsg)) {
+                                chatMessages.removeChild(typingMsg);
+                            }
+                            addMessage('あれ、電波が悪いみたい。もう一回言って！', 'bot');
+                        });
+
+                } else {
+                    const typingMsg = addMessage('入力中...', 'bot', true);
+                    setTimeout(() => {
+                        if (chatMessages.contains(typingMsg)) {
+                            chatMessages.removeChild(typingMsg);
+                        }
+                        addMessage('動画が見たい時は「動画を見せて」って言ってね！', 'bot');
+                    }, 1000);
+                }
+            } catch (fatalError) {
+                console.error(fatalError);
+                // 万が一エラーが起きてもボタンが完全に死ぬのを防ぐ
+                addMessage('ちょっと調子が悪いみたい。もう一度試してみて！', 'bot');
             }
         }
 
