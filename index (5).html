@@ -39,12 +39,16 @@
         // ★ naruさんの設定エリア ★
         // =========================================================
         
-        // ① 動画を探しに行きたいページのURL（ランキングやカテゴリのページがおすすめ）
-        const SCRAPE_TARGET_URL = 'https://jp.pornhub.com/';
-        const SCRAPE_TARGET_URL = 'https://www.tokyomotion.net/videos'
+        // ① 動画を探しに行きたいページのURL（何個でも並べられます！）
+        // ※URLの最後に「,（カンマ）」をつけて増やしていけます。
+        const SCRAPE_TARGET_URLS = [
+            'https://jp.pornhub.com/',
+            'https://jp.pornhub.com/video?o=ht', // 例：人気順ページ
+            'https://jp.pornhub.com/video?o=mv'  // 例：閲覧数順ページ
+        ];
 
         // ② そのサイトの「動画リンク」に必ず含まれる文字
-        // （例：ニコニコなら watch/sm 、他のサイトなら video や embed など）
+        const LINK_KEYWORD = 'view_video';
 
         // ③ ボットの「リアルなセリフ」リスト
         const REPLY_TEXTS = [
@@ -81,34 +85,32 @@
                 // 入力中の演出スタート
                 const typingMsg = addMessage('入力中...', 'bot', true);
 
-                // 【修正版】めちゃくちゃ頑丈で速い中継サーバー（corsproxy.io）に変更
-                fetch(`https://corsproxy.io/?${encodeURIComponent(SCRAPE_TARGET_URL)}`)
+                // 【複数サイト対応】並べられたURLの中からランダムで1つ選ぶ
+                const randomTargetUrl = SCRAPE_TARGET_URLS[Math.floor(Math.random() * SCRAPE_TARGET_URLS.length)];
+
+                // 選ばれたURLにアクセスしに行く
+                fetch(`https://corsproxy.io/?${encodeURIComponent(randomTargetUrl)}`)
                     .then(response => response.text())
                     .then(html => {
-                        // 読み込んだサイトのデータから、リンク（aタグ）だけを抜き出す
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(html, "text/html");
                         const aTags = Array.from(doc.querySelectorAll("a"));
                         
-                        // LINK_KEYWORD が含まれるURLだけを絞り込む
                         let videoLinks = aTags
                             .map(a => a.getAttribute('href'))
                             .filter(href => href && href.includes(LINK_KEYWORD));
 
-                        // 重複を削除
                         videoLinks = [...new Set(videoLinks)];
 
-                        // 【修正版】わざとの長い待ち時間を完全に撤廃！すぐ消して次へ
                         chatMessages.removeChild(typingMsg);
 
                         if (videoLinks.length > 0) {
-                            // 絞り込んだ中からランダムで1つ選ぶ
                             const randomHref = videoLinks[Math.floor(Math.random() * videoLinks.length)];
                             let finalUrl = randomHref;
                             
-                            // URLが「/」から始まる省略形だった場合、元のドメインをくっつける
+                            // URLが「/」から始まる省略形だった場合、選ばれた元のドメインをくっつける
                             if (finalUrl.startsWith('/')) {
-                                const urlObj = new URL(SCRAPE_TARGET_URL);
+                                const urlObj = new URL(randomTargetUrl);
                                 finalUrl = urlObj.origin + finalUrl;
                             }
 
